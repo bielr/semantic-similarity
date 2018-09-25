@@ -1,4 +1,5 @@
-from math import log
+from itertools import groupby
+from math import inf, log
 import csv
 import networkx as nx
 
@@ -44,17 +45,18 @@ def init_ic(freqs_file):
 
     total_anns = sum(freqs.values())
     freqs = {go: -log(freq/total_anns) for go, freq in freqs.items()}
-    return lambda go: freqs.get(go, float('inf'))
+    return lambda go: freqs[go] #.get(go, inf)
 
 def get_root(rel_g, ic, term):
     desc = nx.descendants(rel_g, term).union({term})
-    return min(desc, key=ic)
+    return min(desc, key=ic, default=None)
 
 def get_mica(rel_g, ic, term1, term2):
     desc1 = nx.descendants(rel_g, term1).union({term1})
     desc2 = nx.descendants(rel_g, term2).union({term2})
     ca = desc1.intersection(desc2)
-    return max(ca, key=ic) if ca else None
+
+    return max(ca, key=ic, default=None)
 
 def get_mil(rel_g, ic, term):
     anc = nx.descendants(rel_g, term).union({term})
@@ -69,11 +71,11 @@ def get_mica_dissim(rel_g, ic, term1, term2):
     mica = get_mica(rel_g, ic, term1, term2)
     return ic_dist(ic, term1, mica) + ic_dist(ic, mica, term2)
 
-def get_rcss_sim(rel_g, ic, term1, term2):
+def get_hrss_sim(rel_g, ic, term1, term2):
     mica = get_mica(rel_g, ic, term1, term2)
-    root = get_root(mica)
+    root = get_root(rel_g, ic, mica)
 
-    alpha = ic_dist(root, mica)
+    alpha = ic_dist(ic, root, mica)
     gamma = ic_dist(ic, term1, mica) + ic_dist(ic, mica, term2)
     beta = ( ic(get_mil(rel_g, ic, term1)) + ic(get_mil(rel_g, ic, term2)) ) / 2
 
@@ -85,7 +87,11 @@ def agg_bma_min(f, gos1, gos2):
     return num/denom
 
 def agg_bma_max(f, gos1, gos2):
-    num = sum(max(f(go1, go2) for go1 in gos1) for go2 in gos2) + sum(max(f(go1, go2) for go2 in gos2) for go1 in gos1)
+    mat = [[f(go1, go2) for go2 in gos2] for go1 in gos1]
+
+    num = sum(max(mat[i][j] for j in range(len(gos2))) for i in range(len(gos1))) \
+        + sum(max(mat[i][j] for i in range(len(gos1))) for j in range(len(gos2)))
+    # num = sum(max(f(go1, go2) for go1 in gos1) for go2 in gos2) + sum(max(f(go1, go2) for go2 in gos2) for go1 in gos1)
     denom = len(gos1) + len(gos2)
     return num/denom
 
@@ -99,9 +105,11 @@ def namespace_wise_comparisons(onto, agg_f, gos1, gos2):
     def namespace(go):
         return onto[go].other['namespace']
 
-    grouped_gos2 = list(groupby(sorted(gos2, key=namespace), key=namespace))
+    grouped_gos1 = [(ns1, list(g_gos1)) for ns1, g_gos1 in groupby(sorted(gos1, key=namespace), key=namespace)]
+    grouped_gos2 = [(ns2, list(g_gos2)) for ns2, g_gos2 in groupby(sorted(gos2, key=namespace), key=namespace)]
 
-    for ns1, g_gos1 in groupby(sorted(gos1, key=namespace), key=namespace):
+    for ns1, g_gos1 in grouped_gos1:
         for ns2, g_gos2 in grouped_gos2:
             if ns1 == ns2:
-                yield agg_f(list(g_gos1), list(g_gos2))
+                #assert g_gos1 and g_gos2, str((grouped_gos1, grouped_gos2))
+                yield agg_f(g_gos1, g_gos2)
