@@ -1,5 +1,5 @@
 from itertools import groupby
-from math import inf, log
+from math import inf, isinf, log
 import csv
 import networkx as nx
 
@@ -113,3 +113,62 @@ def namespace_wise_comparisons(onto, agg_f, gos1, gos2):
             if ns1 == ns2:
                 #assert g_gos1 and g_gos2, str((grouped_gos1, grouped_gos2))
                 yield agg_f(g_gos1, g_gos2)
+
+
+class TermMeasure(object):
+    def __init__(self, f, agg, onto):
+        self._f = f
+        self._agg = agg
+        self._onto = onto
+
+    def _intra_ns_agg(self, gos1, gos2):
+        return self._agg(self._f, gos1, gos2)
+
+    def namespace_wise_comparisons(self, gos1, gos2):
+        return namespace_wise_comparisons(self._onto, self._intra_ns_agg, gos1, gos2)
+
+class TermSimilarity(TermMeasure):
+    def __init__(self, f, agg, onto):
+        super().__init__(f=f, agg=agg, onto=onto)
+
+    def compare(self, gos1, gos2):
+        r = max(namespace_wise_comparisons(self._onto, self._intra_ns_agg, gos1, gos2), default=-inf)
+        return r if not isinf(r) else None
+
+class TermDissimilarity(TermMeasure):
+    def __init__(self, f, agg, onto):
+        super().__init__(f=f, agg=agg, onto=onto)
+
+    def compare(self, f, gos1, gos2):
+        r = min(namespace_wise_comparisons(self._onto, self._intra_ns_agg, gos1, gos2), default=inf)
+        return r if not isinf(r) else None
+
+
+class JaccardSim(object):
+    def compare(self, gos1, gos2):
+        if gos1 and gos2:
+            return len(gos1 & gos2) / len(gos1 | gos2)
+        else:
+            return None
+
+class HRSS(TermSimilarity):
+    def __init__(self, agg, onto, rel_g, ic):
+        super().__init__(f=self.hrss, agg=agg, onto=onto)
+        self._rel_g = rel_g
+        self._ic = ic
+
+    def hrss(self, go1, go2):
+        return get_hrss_sim(self._rel_g, self._ic, go1, go2)
+
+class SymmetricDifference(object):
+    def compare(self, gos1, gos2):
+        return len(gos1 ^ gos2)
+
+class ICDist(TermDissimilarity):
+    def __init__(self, agg, onto, ic):
+        super().__init__(f=self.ic_dist, agg=agg, onto=onto)
+        self._ic = ic
+
+    def ic_dist(self, go1, go2):
+        return ic_dist(self._ic, go1, go2)
+
