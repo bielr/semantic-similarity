@@ -53,7 +53,7 @@ def init_ic(onto, freqs_file):
 
     total_anns = sum(freqs.values())
     freqs = {go: -log(freq / freqs[namespaces[onto[go].other['namespace'][0]]]) for go, freq in freqs.items()}
-    return lambda go: freqs[go]
+    return lambda go: freqs.get(go, inf)
 
 def get_root(rel_g, ic, term):
     desc = nx.descendants(rel_g, term).union({term})
@@ -67,8 +67,8 @@ def get_mica(rel_g, ic, term1, term2):
     return max(ca, key=ic, default=None)
 
 def get_mil(rel_g, ic, term):
-    anc = nx.ancestors(rel_g, term).union({term})
-    return max(anc, key=ic)
+    anc = {ancestor for ancestor in nx.ancestors(rel_g, term) if not isinf(ic(ancestor))}
+    return max(anc, key=ic, default=term)
 
 def ic_dist(ic, u, v):
     ic_u = ic(u)
