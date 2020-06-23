@@ -56,19 +56,28 @@ def init_ic(onto, freqs_file):
     return lambda go: freqs.get(go, inf)
 
 def get_root(rel_g, ic, term):
-    desc = nx.descendants(rel_g, term).union({term})
-    return min(desc, key=ic, default=None)
+    try:
+        desc = nx.descendants(rel_g, term).union({term})
+        return min(desc, key=ic, default=None)
+    except:
+        return term
 
 def get_mica(rel_g, ic, term1, term2):
-    desc1 = nx.descendants(rel_g, term1).union({term1})
-    desc2 = nx.descendants(rel_g, term2).union({term2})
-    ca = desc1.intersection(desc2)
-
-    return max(ca, key=ic, default=None)
+    try:
+        desc1 = nx.descendants(rel_g, term1).union({term1})
+        desc2 = nx.descendants(rel_g, term2).union({term2})
+        ca = desc1.intersection(desc2)
+        r =  max(ca, key=ic, default=None)
+        return r
+    except:
+        return max({term1, term2}, key=ic, default=None)
 
 def get_mil(rel_g, ic, term):
-    anc = {ancestor for ancestor in nx.ancestors(rel_g, term) if not isinf(ic(ancestor))}
-    return max(anc, key=ic, default=term)
+    try:
+        anc = {ancestor for ancestor in nx.ancestors(rel_g, term) if not isinf(ic(ancestor))}
+        return max(anc, key=ic, default=term)
+    except:
+        return term
 
 def ic_dist(ic, u, v):
     ic_u = ic(u)
@@ -127,8 +136,10 @@ def compare_for_namespace(onto, agg_f, ns, gos1, gos2):
 
 def namespace_wise_comparisons(onto, agg_f, gos1, gos2):
     def namespace(go):
-        return onto[go].other['namespace']
-
+        try:
+            return onto[go].other['namespace']
+        except KeyError:
+            return ['not-found']
     grouped_gos1 = [(ns1, list(g_gos1)) for ns1, g_gos1 in groupby(sorted(gos1, key=namespace), key=namespace)]
     grouped_gos2 = [(ns2, list(g_gos2)) for ns2, g_gos2 in groupby(sorted(gos2, key=namespace), key=namespace)]
 
